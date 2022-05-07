@@ -13,6 +13,12 @@ new Command()
 
 		const filepath = "./tests/examples/basic.opal";
 		const input = await Deno.readTextFile(filepath);
-		new Parser(input, filepath).parse();
+
+		const parsed = new Parser(input, filepath).parse();
+
+		Deno.writeFileSync(
+			"./tests/examples/basic.json",
+			new TextEncoder().encode(JSON.stringify(parsed, null, 4))
+		);
 	})
 	.parse(Deno.args);

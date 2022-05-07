@@ -5,12 +5,17 @@ import chalkin from "https://deno.land/x/chalkin@v0.1.3/mod.ts";
 
 await init();
 
-export type Script = {};
+export type Script = {
+	attributes?: {
+		[key: string]: string | boolean | number;
+	};
+	source: string;
+};
 
 export type Fragment = {
-	tag: string;
+	name: string;
 	attributes?: {
-		[key: string]: string;
+		[key: string]: string | boolean | number;
 	};
 	bindings?: {
 		[key: string]: string;
@@ -20,14 +25,14 @@ export type Fragment = {
 
 export type Document = {
 	scripts: Script[];
-	fragment: Fragment;
+	fragments: Fragment[];
 };
 
 const whitespace = /\s+/;
 const tag = /^<([a-zA-Z0-9-]+)/;
 
 export class Parser {
-	private _char = "";
+	private _char: string = "";
 	private _cursor = -1;
 	private _line = 1;
 	private _column = 0;
@@ -37,6 +42,10 @@ export class Parser {
 	constructor(source: string, filepath?: string) {
 		this._source = source;
 		this._filepath = filepath || "";
+	}
+
+	private getChar(): string {
+		return this._char;
 	}
 
 	private getLineAt(cursor: number): {
@@ -49,10 +58,7 @@ export class Parser {
 		while (from > 0 && this._source[from] !== "\n") from--;
 		while (to < this._source.length && this._source[to] !== "\n") to++;
 		return {
-			source: this._source
-				.slice(from, to)
-				.replaceAll("\n", "")
-				.replaceAll("\t", "    "),
+			source: this._source.slice(from, to),
 			from,
 			to,
 		};
@@ -71,11 +77,19 @@ export class Parser {
 			(this._source.slice(middle.from, this._cursor).match(/\t/g) || [])
 				.length * 3;
 
-		const middleSource = `> ${this._line
-			.toString()
-			.padStart(gutterLength, " ")} | ${middle.source}\n ${" ".repeat(
-			gutterLength + 1
-		)} |${" ".repeat(this._column + tabOffset)}^\n`;
+		const middleSource = [
+			"> ",
+			this._line.toString().padStart(gutterLength, " "),
+			" | ",
+			middle.source.replaceAll("\n", "").replaceAll("\t", "    "),
+			chalkin.dim(
+				`\n ${" ".repeat(gutterLength + 1)} ${"|"}${" ".repeat(
+					this._column + tabOffset
+				)}`
+			),
+			chalkin.red("^"),
+			"\n",
+		].join("");
 
 		let topLines = "";
 		let lastTopLine = middle.from - 1;
@@ -85,22 +99,29 @@ export class Parser {
 				chalkin.dim(
 					`  ${(this._line - i)
 						.toString()
-						.padStart(gutterLength, " ")} | ${top.source}\n`
+						.padStart(gutterLength, " ")} | ${top.source
+						.replaceAll("\n", "")
+						.replaceAll("\t", "    ")}\n`
 				) + topLines;
 			lastTopLine = top.from - 1;
 		}
 
 		let bottomLines = "";
-		let lastBottomLine = middle.to;
-		for (let i = 1; i <= lines; i++) {
-			const bottom = this.getLineAt(lastBottomLine);
-			bottomLines += chalkin.dim(
-				`  ${(this._line + i)
-					.toString()
-					.padStart(gutterLength, " ")} | ${bottom.source}\n`
-			);
-			lastBottomLine = bottom.to;
-			if (bottom.to === this._source.length) break;
+
+		if (this._cursor < this._source.length) {
+			let lastBottomLine = middle.to;
+			for (let i = 1; i <= lines; i++) {
+				const bottom = this.getLineAt(lastBottomLine);
+				bottomLines += chalkin.dim(
+					`  ${(this._line + i)
+						.toString()
+						.padStart(gutterLength, " ")} | ${bottom.source
+						.replaceAll("\n", "")
+						.replaceAll("\t", "    ")}\n`
+				);
+				lastBottomLine = bottom.to;
+				if (bottom.to >= this._source.length - 1) break;
+			}
 		}
 
 		return new SyntaxError(
@@ -139,15 +160,22 @@ export class Parser {
 			this._cursor++;
 
 			console.log(
-				"cursor",
-				`${this._cursor} ${this._line}:${this._column}`,
-				this._char.replace("\n", "\\n").replace("\t", "\\t")
+				`${this._cursor}\t${this._line}:${this._column}\t${this._char
+					.replace("\n", "\\n")
+					.replace("\t", "\\t")}`
 			);
 
 			this._char = this._source[this._cursor];
 		}
 
 		return this._char;
+	};
+
+	private tryCapture = (regex: RegExp): string | false => {
+		const match = this._source.slice(this._cursor).match(regex);
+		if (!match) return false;
+		this.next(match[0].length);
+		return match[0];
 	};
 
 	/**
@@ -157,11 +185,13 @@ export class Parser {
 	 * @param regex
 	 * @returns
 	 */
-	private capture = (regex: RegExp) => {
-		const match = this._source.slice(this._cursor).match(regex);
-		if (!match) throw this.createSyntaxError(`Failed to capture ${regex}`);
-		this.next(match[0].length);
-		return match[0];
+	private capture = (regex: RegExp, name: string): string => {
+		const ret = this.tryCapture(regex);
+		if (ret === false)
+			throw this.createSyntaxError(
+				`Failed to capture ${name} with regex: ${regex}`
+			);
+		return ret;
 	};
 
 	private unexpected = () => {
@@ -170,14 +200,51 @@ export class Parser {
 
 	// go until next non whitespace char
 	private skipWhitespace = () => {
-		this.capture(/^[\s\t\n]*/);
+		this.capture(/^[\s\t\n]*/, "whitespace");
 	};
 
-	parse(): Document {
+	public static load(source: string, filepath?: string) {
+		return new Parser(source, filepath).parse();
+	}
+
+	public parse(): Document {
 		const scripts: Script[] = [];
 		const fragments: Fragment[] = [];
 
 		const fragmentStack: Fragment[] = [];
+
+		const getCurrentFragment = () => {
+			const len = fragmentStack.length;
+			return len === 0 ? null : fragmentStack[fragmentStack.length - 1];
+		};
+
+		const pushFragment = (fragment: Fragment) => {
+			const parent = getCurrentFragment();
+			if (parent) {
+				if (!parent.children) parent.children = [];
+				parent.children.push(fragment);
+			} else fragments.push(fragment);
+		};
+
+		const setAttribute = (
+			frag: Fragment,
+			name: string,
+			value: string | boolean | number
+		) => {
+			if (!frag) throw new Error("No fragment to set attribute on");
+			if (!frag.attributes) frag.attributes = {};
+			if (frag.attributes[name] !== undefined)
+				throw new Error(`Attribute ${name} already set`);
+			frag.attributes[name] = value;
+		};
+
+		const setBinding = (frag: Fragment, name: string, value: string) => {
+			if (!frag) throw new Error("No fragment to set binding on");
+			if (!frag.bindings) frag.bindings = {};
+			if (frag.bindings[name] !== undefined)
+				throw new Error(`Binding ${name} already set`);
+			frag.bindings[name] = value;
+		};
 
 		// sets the cursor to the first character
 		this.next();
@@ -185,63 +252,295 @@ export class Parser {
 		while (this.hasNext()) {
 			this.skipWhitespace();
 
-			// console.log(cursor, char);
+			// console.log(
+			// 	"stack",
+			// 	chalkin.bgCyan(fragmentStack.map((x) => x.name).join(" > "))
+			// );
+
+			console.log("frags", JSON.stringify(fragments, undefined, 2));
 
 			if (this._char !== "<") this.unexpected();
 
 			if (!this.hasNext()) this.unexpected();
 			this.next();
 
-			// console.log(char);
-
 			// if comment
 			if (this._char === "!") {
 				// capture until end of comment
-				this.capture(/^!--[\s\S]*?-->/);
+				this.capture(/^!--[\s\S]*?-->/, "comment");
 				// go to next tag
+				continue;
+			}
+
+			// if closing tag
+			if (this._char === "/") {
+				if (!this.hasNext())
+					throw this.createSyntaxError("Expected tag name");
+				this.next();
+
+				// capture until end of tag
+				const tagName = this.capture(/^[a-zA-Z]+/, "tag name");
+
+				const cur = getCurrentFragment();
+				if (!cur)
+					throw this.createSyntaxError(
+						"Closing tag before and tag as been opened"
+					);
+				if (cur.name !== tagName)
+					throw this.createSyntaxError(
+						`Closing ${tagName} tag before ${cur.name} tag`
+					);
+
+				if (this.getChar() !== ">")
+					throw this.createSyntaxError("Expected >");
+
+				fragmentStack.pop();
+				pushFragment(cur);
+
+				this.next();
 				continue;
 			}
 
 			// parse tag name
 
 			this.skipWhitespace();
-			const tagName = this.capture(/^[a-zA-Z]+/);
+			const tagName = this.capture(/^[a-zA-Z]+/, "tag name");
+
+			let currentFragment: Fragment = {
+				name: tagName,
+			};
 
 			this.skipWhitespace();
 
-			// collect attributes until closing >
+			// collect attributes until closing > or />
 			while (this.hasNext()) {
+				// if closing element with />
 				if (this._char === "/") {
-					// no children
 					// make sure next is >
-				} else if (this._char === ">") {
-					// has children
+					if (!this.hasNext() || this.next() !== ">")
+						throw this.createSyntaxError("Expected >");
+
+					// end of tag
+					pushFragment(currentFragment);
+
+					this.next();
+					break;
+				}
+				// if ending opening tag with >
+				else if (this._char === ">") {
+					// if this is a script tag, we want to capture the body of it
+					// as a raw string.
+					if (currentFragment.name === "script") {
+						let scriptSource = "";
+						let lastQuote: string | null = null;
+						let escaped = false;
+
+						// capture until end of script
+						while (this.hasNext()) {
+							const char = this.next();
+
+							// if we are not in a string and we see a <
+							if (lastQuote === null && char === "<") {
+								// end of file check
+								if (!this.hasNext()) {
+									throw this.createSyntaxError(
+										"Expected </script>"
+									);
+								}
+
+								if (!!this.tryCapture(/^<\/script>/)) {
+									// we have reached the end of the script.
+									// add it to the list of scripts.
+
+									scripts.push({
+										attributes: currentFragment.attributes,
+										source: scriptSource,
+									});
+									break;
+								}
+							}
+							// handle strings in the script body
+							else if (/['"]/.test(char)) {
+								// if the last character is not a backslash
+								if (!escaped) {
+									if (lastQuote === char) {
+										lastQuote = null;
+									} else {
+										lastQuote = char;
+									}
+								}
+							}
+
+							scriptSource += char;
+
+							escaped = char === "\\";
+						}
+					} else {
+						// parse any children between the opening and closing tag
+
+						// push into stack
+						fragmentStack.push(currentFragment);
+
+						if (!this.hasNext())
+							throw this.createSyntaxError(
+								`Missing closing tag for ${tagName}. Did you mean to use />?`
+							);
+					}
+
+					// move to next fragment
+					this.next();
+					break;
+				}
+				// shorthand binding
+				else if (this._char === "{") {
+					if (!this.hasNext())
+						throw this.createSyntaxError(
+							"Expected binding value after {"
+						);
+					this.next();
+					this.skipWhitespace();
+
+					const attributeName = this.capture(
+						/^(([\w]+)((.([\w])+)*))+/,
+						"shorthand binding attribute name"
+					);
+
+					this.skipWhitespace();
+
+					if (this.getChar() !== "}")
+						throw this.createSyntaxError(
+							"Expected } to complete shorthand binding"
+						);
+
+					setBinding(currentFragment, attributeName, attributeName);
+
+					if (!this.hasNext())
+						throw this.createSyntaxError(
+							"Incomplete tag after shorthand binding"
+						);
+
+					this.next();
+					this.skipWhitespace();
+				}
+				// attribute
+				else {
+					// parse attribute name
+
+					const attributeName = this.capture(
+						/^(([\w]+)((.([\w])+)*))+/,
+						"attribute name"
+					);
+
+					if (this.getChar() === "=") {
+						if (!this.hasNext())
+							throw this.createSyntaxError(
+								"Expected value after ="
+							);
+						this.next();
+
+						// handle string
+						if (/^[\'\"]/.test(this._char)) {
+							const quote = this._char;
+							this.next();
+
+							const value = this.capture(
+								new RegExp(`^[^${quote}]*${quote}`),
+								"attribute value"
+							).slice(0, -1);
+
+							setAttribute(currentFragment, attributeName, value);
+						} else if (this._char === "`") {
+							// todo handle template strings
+
+							throw this.createSyntaxError(
+								"Template strings not supported yet"
+							);
+						} else if (this._char === "{") {
+							if (!this.hasNext())
+								throw this.createSyntaxError(
+									"Expected binding value after {"
+								);
+
+							let bindingSource = "";
+							let lastQuote: string | null = null;
+							let escaped = false;
+							let bracketStack = 0;
+
+							// capture until end of binding source
+							while (this.hasNext()) {
+								const char = this.next();
+
+								if (char === "{") {
+									bracketStack++;
+								}
+								// if we are not in a string and we see a }
+								else if (lastQuote === null && char === "}") {
+									if (bracketStack === 0) {
+										// end of file check
+										if (!this.hasNext()) {
+											throw this.createSyntaxError(
+												"Expected }"
+											);
+										}
+
+										// we have reached the end of the binding.
+										// add it to the list of bindings.
+
+										setBinding(
+											currentFragment,
+											attributeName,
+											bindingSource
+										);
+
+										break;
+									} else {
+										bracketStack--;
+									}
+								}
+								// handle strings in the script body
+								else if (/['"]/.test(char)) {
+									// if the last character is not a backslash
+									if (!escaped) {
+										lastQuote =
+											lastQuote === char ? null : char;
+									}
+								}
+
+								bindingSource += char;
+
+								escaped = char === "\\";
+							}
+
+							if (!this.hasNext())
+								throw this.createSyntaxError(
+									"Incomplete tag after binding"
+								);
+
+							this.next();
+						} else {
+							throw this.createSyntaxError(
+								"Expected value after ="
+							);
+						}
+					} else {
+						// attributes without = are shorthand for =true
+						setAttribute(currentFragment, attributeName, true);
+					}
+
+					this.skipWhitespace();
 				}
 			}
-
-			console.log(tagName);
-
-			// let name = "";
-			// while (hasNext()) {}
-
-			// if (name.length === 0) unexpected();
-
-			// parse attributes
-
-			// push to stack
 		}
 
-		// find <
-
-		// is script or fragment?
-
-		// find
+		if (fragmentStack.length > 0) {
+			throw this.createSyntaxError(
+				`Unclosed tag ${getCurrentFragment()?.name}`
+			);
+		}
 
 		return {
-			scripts: [],
-			fragment: {
-				tag: "",
-			},
+			scripts,
+			fragments,
 		};
 	}
 }
