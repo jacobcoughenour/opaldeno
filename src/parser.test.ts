@@ -1,9 +1,9 @@
-import { Document, Parser } from "../src/parser.ts";
+import { Document, parse } from "../src/parser.ts";
 import { assertEquals } from "https://deno.land/std@0.137.0/testing/asserts.ts";
 
 Deno.test("parse", () => {
 	assertEquals<Document>(
-		Parser.load(`
+		parse(`
 <script lang="ts">
 	console.log("hello world");
 	let color: string = "red";

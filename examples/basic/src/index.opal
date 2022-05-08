@@ -18,13 +18,6 @@
 
 </script>
 
-<x>
-	<y>
-		<z/>
-	</y>
-	<w></w>
-</x>
-
 <scene name="demo scene">
 	<box visible {color} rotation.degrees.y={rotation} />
 </scene>

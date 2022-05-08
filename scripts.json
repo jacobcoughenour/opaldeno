@@ -1,0 +1,11 @@
+{
+	"$schema": "https://deno.land/x/denon@2.5.0/schema.json",
+	"scripts": {
+		"dev": {
+			"cmd": "deno run -A ./src/mod.ts dev"
+		},
+		"build": {
+			"cmd": "deno run -A ./src/mod.ts build"
+		}
+	}
+}
