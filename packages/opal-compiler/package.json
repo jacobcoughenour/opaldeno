@@ -1,0 +1,19 @@
+{
+	"name": "@opal/compiler",
+	"version": "0.0.0",
+	"private": true,
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"scripts": {
+		"build": "tsup ./src/index.ts --dts"
+	},
+	"devDependencies": {
+		"tsup": "^5.12.7",
+		"typescript": "^4.6.4"
+	},
+	"dependencies": {
+		"@opal/core": "*",
+		"chalk": "^4.1.2",
+		"code-block-writer": "^11.0.0"
+	}
+}

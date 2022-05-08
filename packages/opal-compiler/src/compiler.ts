@@ -1,5 +1,5 @@
-import { Document, parse } from "./parser.ts";
-import CodeBlockWriter from "https://deno.land/x/code_block_writer@11.0.0/mod.ts";
+import CodeBlockWriter from "code-block-writer";
+import { parse } from "./parser";
 
 export async function compile(
 	source: string,

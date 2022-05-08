@@ -1,0 +1,15 @@
+{
+	"name": "@opal/runtime",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"build": "tsup ./src/index.ts"
+	},
+	"dependencies": {
+		"@opal/core": "*",
+		"three": "^0.140.0"
+	},
+	"devDependencies": {
+		"tsup": "^5.12.7"
+	}
+}

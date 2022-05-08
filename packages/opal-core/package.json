@@ -1,0 +1,11 @@
+{
+	"name": "@opal/core",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"build": "tsup ./src/index.ts"
+	},
+	"devDependencies": {
+		"tsup": "^5.12.7"
+	}
+}

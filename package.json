@@ -1,0 +1,43 @@
+{
+	"name": "opal",
+	"license": "MIT",
+	"private": true,
+	"packageManager": "yarn@1.22.17",
+	"workspaces": [
+		"packages/*",
+		"examples/*"
+	],
+	"scripts": {
+		"build": "turbo run build",
+		"example": "npx nodemon --exec \"yarn example:dev\"",
+		"example:dev": "turbo run build && cd examples/basic && yarn dev"
+	},
+	"nodemonConfig": {
+		"ignore": [
+			"**/node_modules/**",
+			"**/dist/**",
+			"**/bin/**",
+			"**/.turbo/**"
+		],
+		"watch": [
+			"packages/**/src/**/*.*",
+			"packages/**/package.json",
+			"packages/**/tsconfig.json",
+			"packages/opal-tsconfig/*.json"
+		]
+	},
+	"devDependencies": {
+		"prettier": "^2.6.2",
+		"turbo": "^1.2.8"
+	},
+	"prettier": {
+		"useTabs": true,
+		"tabWidth": 4,
+		"singleQuote": false,
+		"printWidth": 80
+	},
+	"engines": {
+		"npm": ">=7.0.0",
+		"node": ">=14.0.0"
+	}
+}

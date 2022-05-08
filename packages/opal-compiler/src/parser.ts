@@ -1,4 +1,4 @@
-import chalkin from "https://deno.land/x/chalkin@v0.1.3/mod.ts";
+import chalk from "chalk";
 
 export type Script = {
 	attributes?: {
@@ -66,13 +66,13 @@ const createSyntaxError = (error: string) => {
 		"> ",
 		_line.toString().padStart(gutterLength, " "),
 		" | ",
-		middle.source.replaceAll("\n", "").replaceAll("\t", "    "),
-		chalkin.dim(
+		middle.source.replace(/\n/g, "").replace(/\t/g, "    "),
+		chalk.dim(
 			`\n ${" ".repeat(gutterLength + 1)} ${"|"}${" ".repeat(
 				_column + tabOffset
 			)}`
 		),
-		chalkin.red("^"),
+		chalk.red("^"),
 		"\n",
 	].join("");
 
@@ -81,12 +81,12 @@ const createSyntaxError = (error: string) => {
 	for (let i = 1; i <= lines && _line - i > 0; i++) {
 		const top = getLineAt(lastTopLine);
 		topLines =
-			chalkin.dim(
+			chalk.dim(
 				`  ${(_line - i)
 					.toString()
 					.padStart(gutterLength, " ")} | ${top.source
-					.replaceAll("\n", "")
-					.replaceAll("\t", "    ")}\n`
+					.replace(/\n/g, "")
+					.replace(/\t/g, "    ")}\n`
 			) + topLines;
 		lastTopLine = top.from - 1;
 	}
@@ -97,12 +97,12 @@ const createSyntaxError = (error: string) => {
 		let lastBottomLine = middle.to;
 		for (let i = 1; i <= lines; i++) {
 			const bottom = getLineAt(lastBottomLine);
-			bottomLines += chalkin.dim(
+			bottomLines += chalk.dim(
 				`  ${(_line + i)
 					.toString()
 					.padStart(gutterLength, " ")} | ${bottom.source
-					.replaceAll("\n", "")
-					.replaceAll("\t", "    ")}\n`
+					.replace(/\n/g, "")
+					.replace(/\t/g, "    ")}\n`
 			);
 			lastBottomLine = bottom.to;
 			if (bottom.to >= _source.length - 1) break;
@@ -111,12 +111,12 @@ const createSyntaxError = (error: string) => {
 
 	return new SyntaxError(
 		[
-			`\n\n${chalkin.bgRed.black.bold(" ERROR ")} ${error}\n\n`,
-			chalkin.cyan(_filepath),
+			`\n\n${chalk.bgRed.black.bold(" ERROR ")} ${error}\n\n`,
+			chalk.cyan(_filepath),
 			":",
-			chalkin.yellow(_line),
+			chalk.yellow(_line),
 			":",
-			chalkin.yellow(_column),
+			chalk.yellow(_column),
 
 			`\n${topLines}${middleSource}${bottomLines}`,
 		].join("")

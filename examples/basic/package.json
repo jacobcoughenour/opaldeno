@@ -1,5 +1,13 @@
 {
-  "dependencies": {
-    "three": "^0.140.0"
-  }
+	"name": "opal-examples-basic",
+	"version": "0.0.0",
+	"private": true,
+	"dependencies": {
+		"@opal/cli": "*",
+		"@opal/runtime": "*"
+	},
+	"scripts": {
+		"build": "node ../../packages/opal-cli/bin/cli.js build",
+		"dev": "node ../../packages/opal-cli/bin/cli.js dev"
+	}
 }

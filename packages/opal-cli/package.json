@@ -1,0 +1,26 @@
+{
+	"name": "@opal/cli",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"build": "tsup ./src/cli.ts"
+	},
+	"main": "./bin/cli.js",
+	"bin": {
+		"opal": "./bin/cli.js"
+	},
+	"devDependencies": {
+		"@types/express": "^4.17.13",
+		"tsup": "^5.12.7"
+	},
+	"dependencies": {
+		"@opal/compiler": "*",
+		"commander": "^9.2.0",
+		"esbuild": "^0.14.38",
+		"express": "^4.18.1"
+	},
+	"tsup": {
+		"tsconfig": "./tsconfig.json",
+		"outDir": "./bin"
+	}
+}
